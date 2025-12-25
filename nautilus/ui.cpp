@@ -11328,10 +11328,6 @@ void ir_playback_show_buttons()
 
     lv_label_set_text_fmt(ir_playback_path_label, "%s", filename);
 
-    // Add back button to return to file browser
-    lv_obj_t *back_item = lv_list_add_btn(ir_playback_file_list, NULL, "<- Remotes");
-    lv_obj_add_event_cb(back_item, ir_playback_back_to_files_event, LV_EVENT_CLICKED, NULL);
-
     // Add each button from the remote
     for (int i = 0; i < ir_playback_current_remote.size(); i++) {
         const IRSignal& signal = ir_playback_current_remote.signals[i];
