@@ -1,0 +1,5 @@
+.pio
+
+# WebUSB flasher auto-generated firmware files
+webflasher/firmware/*.bin
+webflasher/firmware/manifest.json

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nautilus WebUSB Flasher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000000;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: #444444;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 255, 0, 0.2);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #00FF00;
+            margin-bottom: 10px;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #DDDDDD;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .device-info {
+            background: #333333;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            border: 1px solid #00AA00;
+        }
+
+        .device-info.active {
+            display: block;
+        }
+
+        .device-info h3 {
+            color: #00FF00;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .device-info p {
+            color: #DDDDDD;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #00AA00 0%, #00FF00 100%);
+            color: #000000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+
+        .button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 0, 0.4);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .button.secondary {
+            background: linear-gradient(135deg, #006600 0%, #009900 100%);
+            color: #DDDDDD;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #222222;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            border: 1px solid #00AA00;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00AA00 0%, #00FF00 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000000;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status {
+            color: #DDDDDD;
+            text-align: center;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .log-container {
+            background: #000000;
+            color: #00FF00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            display: none;
+            border: 1px solid #00AA00;
+        }
+
+        .log-container.active {
+            display: block;
+        }
+
+        .log-entry {
+            margin: 3px 0;
+            padding: 2px 0;
+        }
+
+        .log-entry.error {
+            color: #FF4444;
+        }
+
+        .log-entry.success {
+            color: #00FF00;
+        }
+
+        .log-entry.info {
+            color: #00DDDD;
+        }
+
+        .warning {
+            background: #002200;
+            border: 1px solid #00DD00;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #00DD00;
+            font-size: 0.9em;
+        }
+
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .feature-list li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            color: #DDDDDD;
+        }
+
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #00FF00;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+
+		a:link {
+		  color: #0F0;
+		}
+
+		a:visited {
+		  color: #0F0;
+		}
+		
+		a:hover {
+		  color: white;
+		}
+		
+		/* selected link (while being clicked) */
+		a:active {
+		  color: red;
+		}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚓T-Embed Nautilus Flasher</h1>
+        <p class="subtitle">LilyGo T-Embed WebUSB Firmware Installer</p>
+        <p class="subtitle"><a target="_blank" href="https://github.com/n0xa/Nautilus-Firmwarei/README.md">Check out the Nautilus Manual</a></p>
+        <p class="subtitle"><a href="firmware/nautilus.bin" download>Download nautilus.bin for ESP32 Launcher</a></p>
+        <p class="subtitle"><a href="https://amzn.to/49hpRgF" download>Purchase LilyGo T-Embed CC1101</a> (Affiliate Link)</p>
+    <p class="subtitle"><a target="_blank" href="https://github.com/n0xa/Nautilus-Firmware">Nautilus-Firmware on GitHub</a></p>
+        <div class="warning">
+            <strong>⚠️ Browser Requirements:</strong>
+            This tool requires a Chromium-based browser (Chrome, Edge, Opera) with WebSerial API support.
+            If you have trouble flashing, try enabling bootloader mode by holding the center encoder button while pressing the reset button (inside the case near the ESP32 antenna connector) before connecting.
+        </div>
+
+        <ul class="feature-list">
+            <li>No drivers or software installation required</li>
+            <li>Direct browser-to-device flashing</li>
+            <li>Automatic partition management</li>
+            <li>Real-time progress monitoring</li>
+        </ul>
+
+        <div class="device-info" id="deviceInfo">
+            <h3>📱 Connected Device</h3>
+            <p id="deviceName">-</p>
+        </div>
+
+        <button class="button" id="connectBtn">Connect Device</button>
+        <button class="button" id="flashBtn" disabled>Flash Firmware</button>
+        <button class="button secondary" id="eraseBtn" disabled>Erase Flash</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+            <p class="status" id="statusText">Ready</p>
+        </div>
+
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <!-- Inline Buffer polyfill - must load before flasher.js -->
+    <script>
+        // Minimal Buffer polyfill for esptool-js
+        if (typeof Buffer === 'undefined') {
+            window.Buffer = class Buffer extends Uint8Array {
+                constructor(arg, encodingOrOffset, length) {
+                    if (typeof arg === 'number') {
+                        super(arg);
+                    } else if (typeof arg === 'string') {
+                        const encoder = new TextEncoder();
+                        super(encoder.encode(arg));
+                    } else {
+                        super(arg, encodingOrOffset, length);
+                    }
+                }
+
+                toString(encoding = 'utf8') {
+                    const decoder = new TextDecoder(encoding);
+                    return decoder.decode(this);
+                }
+
+                static from(value, encodingOrOffset, length) {
+                    if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
+                        return new Buffer(value);
+                    }
+                    if (typeof value === 'string') {
+                        return new Buffer(value, encodingOrOffset);
+                    }
+                    if (Array.isArray(value)) {
+                        return new Buffer(new Uint8Array(value));
+                    }
+                    return new Buffer(value, encodingOrOffset, length);
+                }
+
+                static alloc(size, fill = 0) {
+                    const buf = new Buffer(size);
+                    buf.fill(fill);
+                    return buf;
+                }
+
+                static concat(list, totalLength) {
+                    if (totalLength === undefined) {
+                        totalLength = list.reduce((acc, buf) => acc + buf.length, 0);
+                    }
+                    const result = new Buffer(totalLength);
+                    let offset = 0;
+                    for (const buf of list) {
+                        result.set(buf, offset);
+                        offset += buf.length;
+                    }
+                    return result;
+                }
+            };
+        }
+    </script>
+
+    <script type="module" src="flasher.js"></script>
+</body>
+</html>
