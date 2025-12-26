@@ -74,7 +74,7 @@ async function fetchReleases() {
 
         const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases`);
         if (!response.ok) {
-            throw new Error(`GitHub API error: ${response.status}`);
+            throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
         }
 
         releases = await response.json();
@@ -82,20 +82,31 @@ async function fetchReleases() {
         // Populate select dropdown
         releaseSelect.innerHTML = '<option value="">Use Local Files</option>';
 
-        releases.forEach((release, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = `${release.name || release.tag_name} ${release.prerelease ? '(Pre-release)' : ''}`;
-            releaseSelect.appendChild(option);
-        });
+        if (releases.length === 0) {
+            log('No releases found', 'info');
+            releaseSelect.innerHTML += '<option disabled>No releases available</option>';
+        } else {
+            releases.forEach((release, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${release.name || release.tag_name} ${release.prerelease ? '(Pre-release)' : ''}`;
+                releaseSelect.appendChild(option);
+            });
 
-        log(`Loaded ${releases.length} releases`, 'success');
-        refreshReleasesBtn.textContent = 'Refresh Releases';
+            // Default to the latest release (first in the list)
+            releaseSelect.value = '0';
+            selectedRelease = releases[0];
+            log(`Loaded ${releases.length} releases - Selected: ${selectedRelease.name || selectedRelease.tag_name}`, 'success');
+        }
+
+        refreshReleasesBtn.textContent = 'Refresh';
         refreshReleasesBtn.disabled = false;
 
     } catch (error) {
         log(`Failed to fetch releases: ${error.message}`, 'error');
-        refreshReleasesBtn.textContent = 'Refresh Releases';
+        console.error('Release fetch error:', error);
+        releaseSelect.innerHTML = '<option value="">Use Local Files (Release fetch failed)</option>';
+        refreshReleasesBtn.textContent = 'Retry';
         refreshReleasesBtn.disabled = false;
     }
 }
@@ -115,12 +126,18 @@ function getManifestForRelease(release) {
         throw new Error('Release is missing required firmware files');
     }
 
+    // Use proxy to bypass CORS restrictions
+    const proxyUrl = (url) => {
+        // Check if proxy.php exists, otherwise use direct URL (will fail with CORS)
+        return `proxy.php?url=${encodeURIComponent(url)}`;
+    };
+
     return {
         chipFamily: "ESP32-S3",
         files: [
-            { path: bootloader.browser_download_url, offset: 0x0 },
-            { path: partitions.browser_download_url, offset: 0x8000 },
-            { path: firmware.browser_download_url, offset: 0x10000 }
+            { path: proxyUrl(bootloader.browser_download_url), offset: 0x0 },
+            { path: proxyUrl(partitions.browser_download_url), offset: 0x8000 },
+            { path: proxyUrl(firmware.browser_download_url), offset: 0x10000 }
         ]
     };
 }
@@ -392,5 +409,14 @@ window.addEventListener('load', () => {
     }
 
     // Fetch releases on page load
-    fetchReleases();
+    if (releaseSelect && refreshReleasesBtn) {
+        fetchReleases().catch(err => {
+            console.error('Failed to fetch releases on load:', err);
+            log('Failed to load releases from GitHub. Using local files only.', 'error');
+            releaseSelect.innerHTML = '<option value="">Use Local Files</option>';
+            refreshReleasesBtn.textContent = 'Retry';
+        });
+    } else {
+        console.error('Release selector elements not found');
+    }
 });
