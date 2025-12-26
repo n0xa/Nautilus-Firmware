@@ -12,14 +12,22 @@ const progressContainer = document.getElementById('progressContainer');
 const progressFill = document.getElementById('progressFill');
 const statusText = document.getElementById('statusText');
 const logContainer = document.getElementById('logContainer');
+const releaseSelect = document.getElementById('releaseSelect');
+const refreshReleasesBtn = document.getElementById('refreshReleasesBtn');
 
 // State
 let esploader = null;
 let transport = null;
 let port = null;
 let chip = null;
+let releases = [];
+let selectedRelease = null;
 
-// Firmware manifest
+// GitHub repository info
+const GITHUB_REPO = 'n0xa/Nautilus-Firmware';
+const GITHUB_API_BASE = 'https://api.github.com';
+
+// Firmware manifest (default local files)
 const FIRMWARE_MANIFEST = {
     chipFamily: "ESP32-S3",
     files: [
@@ -55,6 +63,66 @@ function updateProgress(percent, message) {
 function setButtonsEnabled(enabled) {
     flashBtn.disabled = !enabled;
     eraseBtn.disabled = !enabled;
+}
+
+// GitHub Releases API functions
+async function fetchReleases() {
+    try {
+        log('Fetching releases from GitHub...', 'info');
+        refreshReleasesBtn.disabled = true;
+        refreshReleasesBtn.textContent = 'Loading...';
+
+        const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases`);
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+
+        releases = await response.json();
+
+        // Populate select dropdown
+        releaseSelect.innerHTML = '<option value="">Use Local Files</option>';
+
+        releases.forEach((release, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `${release.name || release.tag_name} ${release.prerelease ? '(Pre-release)' : ''}`;
+            releaseSelect.appendChild(option);
+        });
+
+        log(`Loaded ${releases.length} releases`, 'success');
+        refreshReleasesBtn.textContent = 'Refresh Releases';
+        refreshReleasesBtn.disabled = false;
+
+    } catch (error) {
+        log(`Failed to fetch releases: ${error.message}`, 'error');
+        refreshReleasesBtn.textContent = 'Refresh Releases';
+        refreshReleasesBtn.disabled = false;
+    }
+}
+
+function getManifestForRelease(release) {
+    if (!release) {
+        // Return default local manifest
+        return FIRMWARE_MANIFEST;
+    }
+
+    // Find firmware assets in the release
+    const bootloader = release.assets.find(a => a.name === 'bootloader.bin');
+    const partitions = release.assets.find(a => a.name === 'partitions.bin');
+    const firmware = release.assets.find(a => a.name === 'firmware.bin');
+
+    if (!bootloader || !partitions || !firmware) {
+        throw new Error('Release is missing required firmware files');
+    }
+
+    return {
+        chipFamily: "ESP32-S3",
+        files: [
+            { path: bootloader.browser_download_url, offset: 0x0 },
+            { path: partitions.browser_download_url, offset: 0x8000 },
+            { path: firmware.browser_download_url, offset: 0x10000 }
+        ]
+    };
 }
 
 // Connect to device
@@ -165,11 +233,20 @@ async function flashFirmware() {
         connectBtn.disabled = true;
         updateProgress(0, 'Preparing to flash...');
 
+        // Get the manifest for the selected release (or use local files)
+        const manifest = getManifestForRelease(selectedRelease);
+
+        if (selectedRelease) {
+            log(`Using release: ${selectedRelease.name || selectedRelease.tag_name}`, 'info');
+        } else {
+            log('Using local firmware files', 'info');
+        }
+
         // Load all firmware files
         log('Loading firmware files...', 'info');
         const fileArray = [];
 
-        for (const file of FIRMWARE_MANIFEST.files) {
+        for (const file of manifest.files) {
             const arrayBuffer = await loadFile(file.path);
             // esptool-js expects a binary string, not Uint8Array
             const uint8Data = new Uint8Array(arrayBuffer);
@@ -198,7 +275,7 @@ async function flashFirmware() {
             reportProgress: (fileIndex, written, total) => {
                 const fileProgress = (written / total) * progressStep;
                 const totalProgress = Math.min(90, progress + fileProgress);
-                const fileName = FIRMWARE_MANIFEST.files[fileIndex].path.split('/').pop();
+                const fileName = manifest.files[fileIndex].path.split('/').pop();
                 updateProgress(
                     Math.floor(totalProgress),
                     `Flashing ${fileName}... ${written}/${total} bytes`
@@ -290,6 +367,21 @@ connectBtn.addEventListener('click', async () => {
 flashBtn.addEventListener('click', flashFirmware);
 eraseBtn.addEventListener('click', eraseFlash);
 
+// Release selection event listener
+releaseSelect.addEventListener('change', (e) => {
+    const index = e.target.value;
+    if (index === '') {
+        selectedRelease = null;
+        log('Selected: Local firmware files', 'info');
+    } else {
+        selectedRelease = releases[parseInt(index)];
+        log(`Selected: ${selectedRelease.name || selectedRelease.tag_name}`, 'info');
+    }
+});
+
+// Refresh releases button
+refreshReleasesBtn.addEventListener('click', fetchReleases);
+
 // Check for WebSerial API support
 window.addEventListener('load', () => {
     if (!('serial' in navigator)) {
@@ -298,4 +390,7 @@ window.addEventListener('load', () => {
     } else {
         log('WebSerial API detected. Ready to connect.', 'success');
     }
+
+    // Fetch releases on page load
+    fetchReleases();
 });
