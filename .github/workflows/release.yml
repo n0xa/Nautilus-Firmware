@@ -1,0 +1,108 @@
+name: Build and Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'  # Matches v1.0.0, v2.1.3, etc.
+
+jobs:
+  build-and-release:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Build firmware
+        run: pio run
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release-artifacts
+
+          # Copy firmware binaries
+          cp .pio/build/T_Embed_CC1101/firmware.bin release-artifacts/
+          cp .pio/build/T_Embed_CC1101/bootloader.bin release-artifacts/
+          cp .pio/build/T_Embed_CC1101/partitions.bin release-artifacts/
+
+          # Copy merged binary and manifest if they exist (from copy_firmware.py script)
+          if [ -f webflasher/firmware/nautilus.bin ]; then
+            cp webflasher/firmware/nautilus.bin release-artifacts/
+          fi
+          if [ -f webflasher/firmware/manifest.json ]; then
+            cp webflasher/firmware/manifest.json release-artifacts/
+          fi
+
+          # Create a flasher package
+          cd release-artifacts
+          tar -czf nautilus-firmware-${GITHUB_REF_NAME}.tar.gz *.bin *.json 2>/dev/null || true
+          cd ..
+
+      - name: Extract release notes
+        id: extract_notes
+        run: |
+          # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Check if CHANGELOG.md exists and extract notes for this version
+          if [ -f CHANGELOG.md ]; then
+            # Try to extract changelog section for this version
+            sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' > /tmp/release_notes.txt || echo "" > /tmp/release_notes.txt
+          else
+            echo "" > /tmp/release_notes.txt
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Nautilus Firmware ${{ steps.extract_notes.outputs.version }}"
+          body_path: /tmp/release_notes.txt
+          files: |
+            release-artifacts/firmware.bin
+            release-artifacts/bootloader.bin
+            release-artifacts/partitions.bin
+            release-artifacts/nautilus.bin
+            release-artifacts/manifest.json
+            release-artifacts/nautilus-firmware-${{ github.ref_name }}.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        run: |
+          echo "## Build Complete! ✓" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.extract_notes.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- firmware.bin ($(du -h release-artifacts/firmware.bin | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          echo "- bootloader.bin ($(du -h release-artifacts/bootloader.bin | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          echo "- partitions.bin ($(du -h release-artifacts/partitions.bin | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          if [ -f release-artifacts/nautilus.bin ]; then
+            echo "- nautilus.bin - merged ($(du -h release-artifacts/nautilus.bin | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          fi
