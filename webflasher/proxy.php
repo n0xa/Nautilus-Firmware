@@ -2,6 +2,15 @@
 // Simple CORS proxy for GitHub release assets
 // Usage: proxy.php?url=https://github.com/.../releases/download/.../file.bin
 
+// I don't trust y'all motherfuckers at all
+$allowed_domain = 'https://nautilus.h-i-r.net';
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+if (strpos($referer, $allowed_domain) !== 0) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Forbidden']);
+    exit();
+}
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -13,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $url = $_GET['url'] ?? '';
 
-// Validate it's a GitHub release URL
-if (!preg_match('#^https://github\.com/[^/]+/[^/]+/releases/download/#', $url)) {
+// AT. ALL. 
+if (!preg_match('#^https://github\.com/n0xa/Nautilus-Firmware/releases/download/#', $url)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid URL']);
     exit();
