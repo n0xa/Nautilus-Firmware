@@ -208,6 +208,73 @@
             font-size: 1.2em;
         }
 
+        .release-selector {
+            background: #333333;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #00AA00;
+        }
+
+        .release-selector h3 {
+            color: #00FF00;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .release-controls {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .release-controls select {
+            flex: 1;
+            background: #222222;
+            color: #00FF00;
+            border: 1px solid #00AA00;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .release-controls select:focus {
+            outline: none;
+            border-color: #00FF00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .release-controls select option {
+            background: #222222;
+            color: #00FF00;
+            padding: 10px;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #006600 0%, #009900 100%);
+            color: #DDDDDD;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .refresh-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 153, 0, 0.4);
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 640px) {
             .container {
                 padding: 30px 20px;
@@ -215,6 +282,14 @@
 
             h1 {
                 font-size: 1.5em;
+            }
+
+            .release-controls {
+                flex-direction: column;
+            }
+
+            .refresh-btn {
+                width: 100%;
             }
         }
 
@@ -256,6 +331,16 @@
             <li>Automatic partition management</li>
             <li>Real-time progress monitoring</li>
         </ul>
+
+        <div class="release-selector">
+            <h3>📦 Firmware Version</h3>
+            <div class="release-controls">
+                <select id="releaseSelect">
+                    <option value="">Loading releases...</option>
+                </select>
+                <button class="refresh-btn" id="refreshReleasesBtn">Refresh</button>
+            </div>
+        </div>
 
         <div class="device-info" id="deviceInfo">
             <h3>📱 Connected Device</h3>
